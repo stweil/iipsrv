@@ -1,11 +1,11 @@
 /*
     IIP FCGI server module - Main loop.
 
-    Copyright (C) 2000-2011 Ruven Pillay
+    Copyright (C) 2000-2015 Ruven Pillay
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
@@ -14,8 +14,8 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+    along with this program; if not, write to the Free Software Foundation,
+    Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
 */
 
 
@@ -44,7 +44,11 @@
 #include "Writer.h"
 
 #ifdef HAVE_MEMCACHED
+#ifdef WIN32
+#include "../windows/MemcachedWindows.h"
+#else
 #include "Memcached.h"
+#endif
 #endif
 
 #ifdef ENABLE_DL
@@ -52,7 +56,23 @@
 #endif
 
 
-
+// If necessary, define missing setenv and unsetenv functions
+#ifndef HAVE_SETENV
+static void setenv(char *n, char *v, int x) {
+  char buf[256];
+  snprintf(buf,sizeof(buf),"%s=%s",n,v);
+  putenv(buf);
+}
+static void unsetenv(char *env_name) {
+  extern char **environ;
+  char **cc;
+  int l;
+  l=strlen(env_name);
+  for (cc=environ;*cc!=NULL;cc++) {
+    if (strncmp(env_name,*cc,l)==0 && ((*cc)[l]=='='||(*cc)[l]=='\0')) break;
+  } for (; *cc != NULL; cc++) *cc=cc[1];
+}
+#endif
 
 
 //#define DEBUG 1
@@ -68,7 +88,7 @@ using namespace std;
 int loglevel;
 ofstream logfile;
 unsigned long IIPcount;
-
+char *tz = NULL;
 
 
 
@@ -77,6 +97,11 @@ unsigned long IIPcount;
 void IIPSignalHandler( int signal )
 {
   if( loglevel >= 1 ){
+
+    // Reset our time zone environment
+    if(tz) setenv("TZ", tz, 1);
+    else unsetenv("TZ");
+    tzset();
 
     time_t current_time = time( NULL );
     char *date = ctime( &current_time );
@@ -150,6 +175,13 @@ int main( int argc, char *argv[] )
     }
 
   }
+
+
+  // Set our environment to UTC as all file modification times are GMT,
+  // but save our current state to allow us to reset before quitting
+  tz = getenv("TZ");
+  setenv("TZ","",1);
+  tzset();
 
 
 
@@ -228,13 +260,28 @@ int main( int argc, char *argv[] )
 		       Environment::getWatermarkProbability() );
 
 
+  // Get the CORS setting
+  string cors = Environment::getCORS();
+
+
+  // Get any Base URL setting
+  string base_url = Environment::getBaseURL();
+
+
+  // Get requested HTTP Cache-Control setting
+  string cache_control = Environment::getCacheControl();
+
+
   // Print out some information
   if( loglevel >= 1 ){
     logfile << "Setting maximum image cache size to " << max_image_cache_size << "MB" << endl;
     logfile << "Setting filesystem prefix to '" << filesystem_prefix << "'" << endl;
     logfile << "Setting default JPEG quality to " << jpeg_quality << endl;
     logfile << "Setting maximum CVT size to " << max_CVT << endl;
+    logfile << "Setting HTTP Cache-Control header to '" << cache_control << "'" << endl;
     logfile << "Setting 3D file sequence name pattern to '" << filename_pattern << "'" << endl;
+    if( !cors.empty() ) logfile << "Setting Cross Origin Resource Sharing to '" << cors << "'" << endl;
+    if( !base_url.empty() ) logfile << "Setting base URL to '" << base_url << "'" << endl;
     if( max_layers != 0 ){
       logfile << "Setting max quality layers (for supported file formats) to ";
       if( max_layers < 0 ) logfile << "all layers" << endl;
@@ -401,40 +448,18 @@ int main( int argc, char *argv[] )
 
     // View object for use with the CVT command etc
     View view;
-    if( max_CVT != -1 ){
-      view.setMaxSize( max_CVT );
-      if( loglevel >= 2 ) logfile << "CVT maximum viewport size set to " << max_CVT << endl;
-    }
+    if( max_CVT != -1 ) view.setMaxSize( max_CVT );
     if( max_layers != 0 ) view.setMaxLayers( max_layers );
-
-
 
 
 
     // Create an IIPResponse object - we use this for the OBJ requests.
     // As the commands return images etc, they handle their own responses.
     IIPResponse response;
-
+    response.setCORS( cors );
+    response.setCacheControl( cache_control );
 
     try{
-      
-      // Get the query into a string
-#ifdef DEBUG
-      const string request_string = argv[1];
-#else
-      const string request_string = FCGX_GetParam( "QUERY_STRING", request.envp );
-#endif
-
-      // Check that we actually have a request string
-      if( request_string.length() == 0 ) {
-	throw string( "QUERY_STRING not set" );
-      }
-
-      if( loglevel >=2 ){
-	logfile << "Full Request is " << request_string << endl;
-      }
-
-      
 
       // Set up our session data object
       Session session;
@@ -449,23 +474,57 @@ int main( int argc, char *argv[] )
       session.out = &writer;
       session.watermark = &watermark;
       session.headers.empty();
-	  session.useOpenJPEG = useOpenJPEG;
+      session.useOpenJPEG = useOpenJPEG;
 
-      // Get certain HTTP headers, such as if_modified_since and the query_string
       char* header = NULL;
+ 
+      // Get the query into a string
+#ifdef DEBUG
+      header = argv[1];
+#else
+      header = FCGX_GetParam( "QUERY_STRING", request.envp );
+#endif
+
+      const string request_string = (header!=NULL)? header : "";
+
+      // Check that we actually have a request string
+      if( request_string.empty() ){
+	throw string( "QUERY_STRING not set" );
+      }
+
+      if( loglevel >=2 ){
+	logfile << "Full Request is " << request_string << endl;
+      }
+
+
+      // Store some headers
+      session.headers["QUERY_STRING"] = request_string;
+      session.headers["BASE_URL"] = base_url;
+
+      // Get several other HTTP headers
+      if( (header = FCGX_GetParam("SERVER_PROTOCOL", request.envp)) ){
+	session.headers["SERVER_PROTOCOL"] = string(header);
+      }
+      if( (header = FCGX_GetParam("HTTP_HOST", request.envp)) ){
+	session.headers["HTTP_HOST"] = string(header);
+      }
+      if( (header = FCGX_GetParam("REQUEST_URI", request.envp)) ){
+	session.headers["REQUEST_URI"] = string(header);
+      }
+
+      // Check for IF_MODIFIED_SINCE
       if( (header = FCGX_GetParam("HTTP_IF_MODIFIED_SINCE", request.envp)) ){
 	session.headers["HTTP_IF_MODIFIED_SINCE"] = string(header);
 	if( loglevel >= 2 ){
-	  logfile << "HTTP Header: If-Modified-Since: " << session.headers["HTTP_IF_MODIFIED_SINCE"] << endl;
+	  logfile << "HTTP Header: If-Modified-Since: " << header << endl;
 	}
       }
-      session.headers["QUERY_STRING"] = request_string;
 
 
 #ifdef HAVE_MEMCACHED
       // Check whether this exists in memcached, but only if we haven't had an if_modified_since
       // request, which should always be faster to send
-      if( !header ){
+      if( !header || session.headers["HTTP_IF_MODIFIED_SINCE"].empty() ){
 	char* memcached_response = NULL;
 	if( (memcached_response = memcached.retrieve( request_string )) ){
 	  writer.putStr( memcached_response, memcached.length() );
@@ -631,6 +690,28 @@ int main( int argc, char *argv[] )
 	writer.printf( response.getAdvert( version ).c_str() );
       }
 
+    }
+
+    // Image file errors
+    catch( const file_error& error ){
+      string status = "Status: 404 Not Found\r\nServer: iipsrv/" + version + "\r\n\r\n" + error.what();
+      writer.printf( status.c_str() );
+      writer.flush();
+      if( loglevel >= 2 ){
+	logfile << error.what() << endl;
+	logfile << "Sending HTTP 404 Not Found" << endl;
+      }
+    }
+
+    // Parameter errors
+    catch( const invalid_argument& error ){
+      string status = "Status: 400 Bad Request\r\nServer: iipsrv/" + version + "\r\n\r\n" + error.what();
+      writer.printf( status.c_str() );
+      writer.flush();
+      if( loglevel >= 2 ){
+	logfile << error.what() << endl;
+	logfile << "Sending HTTP 400 Bad Request" << endl;
+      }
     }
 
     /* Default catch

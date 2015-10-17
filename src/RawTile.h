@@ -2,11 +2,11 @@
 
 /*  IIP Image Server
 
-    Copyright (C) 2000-2009 Ruven Pillay.
+    Copyright (C) 2000-2013 Ruven Pillay.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
@@ -15,8 +15,8 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+    along with this program; if not, write to the Free Software Foundation,
+    Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
 */
 
 
@@ -31,11 +31,13 @@
 
 
 /// Colour spaces - GREYSCALE, sRGB and CIELAB
-enum ColourSpaces { GREYSCALE, sRGB, CIELAB };
+enum ColourSpaces { NONE, GREYSCALE, sRGB, CIELAB };
 
 /// Compression Types
-enum CompressionType { UNCOMPRESSED, JPEG, DEFLATE };
+enum CompressionType { UNCOMPRESSED, JPEG, DEFLATE, PNG };
 
+/// Sample Types
+enum SampleType { FIXEDPOINT, FLOATINGPOINT };
 
 
 /// Class to represent a single image tile
@@ -68,10 +70,6 @@ class RawTile{
   /// Tile timestamp
   time_t timestamp;
 
-
- public:
-
-
   /// Pointer to the image data
   void *data;
 
@@ -95,34 +93,47 @@ class RawTile{
   /// The number of bits per channel for this tile
   int bpc;
 
+  /// Sample format type (fixed or floating point)
+  SampleType sampleType;
+
   /// Padded
   bool padded;
 
 
   /// Main constructor
-  /** \param tn tile number
-      \param res resolution
-      \param hs horizontal sequence angle
-      \param vs vertical sequence angle
-      \param w tile width
-      \param h tile height
-      \param c number of channels
-      \param b bits per channel per sample
+  /** @param tn tile number
+      @param res resolution
+      @param hs horizontal sequence angle
+      @param vs vertical sequence angle
+      @param w tile width
+      @param h tile height
+      @param c number of channels
+      @param b bits per channel per sample
   */
   RawTile( int tn = 0, int res = 0, int hs = 0, int vs = 0,
 	   int w = 0, int h = 0, int c = 0, int b = 0 ) {
     width = w; height = h; bpc = b; dataLength = 0; data = NULL;
     tileNum = tn; resolution = res; hSequence = hs ; vSequence = vs;
     memoryManaged = 1; channels = c; compressionType = UNCOMPRESSED; quality = 0;
-    timestamp = 0; padded = false;
+    timestamp = 0; sampleType = FIXEDPOINT; padded = false;
   };
 
 
   /// Destructor to free the data array if is has previously be allocated locally
   ~RawTile() {
     if( data && memoryManaged ){
-      if(bpc==16) delete[] (unsigned short*) data;
-      else delete[] (unsigned char*) data;
+      switch( bpc ){
+      case 32:
+        if( sampleType == FLOATINGPOINT ) delete[] (float*) data;
+        else delete[] (unsigned int*) data;
+        break;
+      case 16:
+	delete[] (unsigned short*) data;
+        break;
+      default:
+	delete[] (unsigned char*) data;
+        break;
+      }
     }
   }
 
@@ -143,10 +154,21 @@ class RawTile{
     quality = tile.quality;
     filename = tile.filename;
     timestamp = tile.timestamp;
+    sampleType = tile.sampleType;
     padded = tile.padded;
 
-    if( bpc == 16 ) data = new unsigned short[dataLength/2];
-    else data = new unsigned char[dataLength];
+    switch( bpc ){
+      case 32:
+	if( sampleType == FLOATINGPOINT ) data = new float[dataLength/4];
+	else data = new unsigned int[dataLength/4];
+	break;
+      case 16:
+	data = new unsigned short[dataLength/2];
+	break;
+      default:
+	data = new unsigned char[dataLength];
+	break;
+    }
 
     if( data && (dataLength > 0) && tile.data ){
       memcpy( data, tile.data, dataLength );
@@ -171,10 +193,21 @@ class RawTile{
     quality = tile.quality;
     filename = tile.filename;
     timestamp = tile.timestamp;
+    sampleType = tile.sampleType;
     padded = tile.padded;
 
-    if( bpc == 16 ) data = new unsigned short[dataLength/2];
-    else data = new unsigned char[dataLength];
+    switch( bpc ){
+      case 32:
+	if( sampleType == FLOATINGPOINT ) data = new float[dataLength/4];
+	else data = new int[dataLength/4];
+	break;
+      case 16:
+	data = new unsigned short[dataLength/2];
+	break;
+      default:
+	data = new unsigned char[dataLength];
+	break;
+    }
 
     if( data && (dataLength > 0) && tile.data ){
       memcpy( data, tile.data, dataLength );

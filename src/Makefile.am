@@ -4,7 +4,7 @@ noinst_PROGRAMS =	iipsrv.fcgi
 
 
 INCLUDES =		@INCLUDES@ @LIBFCGI_INCLUDES@ @JPEG_INCLUDES@ @TIFF_INCLUDES@
-LIBS =			@LIBS@ @LIBFCGI_LIBS@ @DL_LIBS@ @JPEG_LIBS@ @TIFF_LIBS@ -lz -lm
+LIBS =			@LIBS@ @LIBFCGI_LIBS@ @DL_LIBS@ @JPEG_LIBS@ @TIFF_LIBS@ -lm
 AM_LDFLAGS =		@LIBFCGI_LDFLAGS@
 
 iipsrv_fcgi_LDADD = Main.o
@@ -17,11 +17,15 @@ if ENABLE_OPENJPEG
 iipsrv_fcgi_LDADD += OpenJPEGImage.o
 endif
 
+#if ENABLE_PNG
+#iipsrv_fcgi_LDADD += PNGCompressor.o PTL.o
+#endif
+
 if ENABLE_MODULES
 iipsrv_fcgi_LDADD += DSOImage.o
 endif
 
-EXTRA_iipsrv_fcgi_SOURCES = DSOImage.h DSOImage.cc KakaduImage.h KakaduImage.cc Memcached.h Main.cc OpenJPEGImage.h OpenJPEGImage.cc
+EXTRA_iipsrv_fcgi_SOURCES = DSOImage.h DSOImage.cc KakaduImage.h KakaduImage.cc Main.cc OpenJPEGImage.h OpenJPEGImage.cc
 
 iipsrv_fcgi_SOURCES = \
 			IIPImage.h \
@@ -43,6 +47,7 @@ iipsrv_fcgi_SOURCES = \
 			Transforms.h \
 			Transforms.cc \
 			Environment.h \
+			URL.h \
 			Writer.h \
 			Task.h \
 			Task.cc \
@@ -55,6 +60,8 @@ iipsrv_fcgi_SOURCES = \
 			Zoomify.cc \
 			DeepZoom.cc \
 			SPECTRA.cc \
+			PFL.cc \
+			IIIF.cc \
 			Watermark.h \
-			Watermark.cc
-
+			Watermark.cc \
+			Memcached.h

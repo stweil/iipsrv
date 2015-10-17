@@ -2,13 +2,13 @@
 
 /*  IIP Image Server
 
-    Copyright (C) 2005-2010 Ruven Pillay.
+    Copyright (C) 2005-2014 Ruven Pillay.
     Based on an LRU cache by Patrick Audley <http://blackcat.ca/lifeline/query.php/tag=LRU_CACHE>
     Copyright (C) 2004 by Patrick Audley
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
@@ -17,8 +17,8 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+    along with this program; if not, write to the Free Software Foundation,
+    Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
 */
 
 
@@ -26,44 +26,57 @@
 #ifndef _CACHE_H
 #define _CACHE_H
 
-// Remove our deprecated warnings for now. We should upgrade our hash_maps to
-// unordered_maps, however
-#undef __DEPRECATED
-
-// Use the hashmap extensions if we are using >= gcc 3.1
-#ifdef __GNUC__
-
-#if (__GNUC__ == 3 && __GNUC_MINOR__ >= 1) || (__GNUC__ >= 4)
-#define USE_HASHMAP 1
-#include <ext/hash_map>
-namespace __gnu_cxx
-{
-  template<> struct hash< const std::string > {
-    size_t operator()( const std::string& x ) const {
-      return hash< const char* >()( x.c_str() );
-    }
-  };
-}
-#endif
-
-// And the high performance memory pool allocator if >= gcc 3.4
-#if (__GNUC__ == 3 && __GNUC_MINOR__ >= 4) || (__GNUC__ >= 4)
-#define POOL_ALLOCATOR 1
-#include <ext/pool_allocator.h>
-#endif
-
-#endif
-
-
-#ifndef USE_HASHMAP
-#include <map>
-#endif
-
 
 // Fix missing snprintf in Windows
 #if _MSC_VER
 #define snprintf _snprintf
 #endif
+
+
+
+// Test for available map types. Try to use an efficient hashed map type if possible
+// and define this as HASHMAP, which we can then use elsewhere.
+#if defined(HAVE_UNORDERED_MAP)
+#include <unordered_map>
+#define HASHMAP std::unordered_map
+
+#elif defined(HAVE_TR1_UNORDERED_MAP)
+#include <tr1/unordered_map>
+#define HASHMAP std::tr1::unordered_map
+
+// Use the gcc hash_map extension if we have it
+#elif defined(HAVE_EXT_HASH_MAP)
+#include <ext/hash_map>
+#define HASHMAP __gnu_cxx::hash_map
+
+/* Explicit template specialization of hash of a string class,
+   which just uses the internal char* representation as a wrapper.
+   Required for older versions of gcc as hashing on a string is
+   not supported.
+ */
+namespace __gnu_cxx {
+  template <>
+    struct hash<std::string> {
+      size_t operator() (const std::string& x) const {
+	return hash<const char*>()(x.c_str());
+      }
+    };
+}
+
+// If no hash type available, just use map
+#else
+#include <map>
+#define HASHMAP std::map
+
+#endif // End of #if defined
+
+
+
+// Try to use the gcc high performance memory pool allocator (available in gcc >= 3.4)
+#ifdef HAVE_EXT_POOL_ALLOCATOR
+#include <ext/pool_allocator.h>
+#endif
+
 
 
 #include <iostream>
@@ -90,7 +103,7 @@ class Cache {
   unsigned long currentSize;
 
   /// Main cache storage typedef
-#ifdef POOL_ALLOCATOR
+#ifdef HAVE_EXT_POOL_ALLOCATOR
   typedef std::list < std::pair<const std::string,RawTile>,
     __gnu_cxx::__pool_alloc< std::pair<const std::string,RawTile> > > TileList;
 #else
@@ -101,19 +114,16 @@ class Cache {
   typedef std::list < std::pair<const std::string,RawTile> >::iterator List_Iter;
 
   /// Index typedef
-#ifdef USE_HASHMAP
-#ifdef POOL_ALLOCATOR
-  typedef __gnu_cxx::hash_map < const std::string, List_Iter,
+#ifdef HAVE_EXT_POOL_ALLOCATOR
+  typedef HASHMAP < std::string, List_Iter,
     __gnu_cxx::hash< const std::string >,
     std::equal_to< const std::string >,
     __gnu_cxx::__pool_alloc< std::pair<const std::string, List_Iter> >
     > TileMap;
 #else
-  typedef __gnu_cxx::hash_map < const std::string,List_Iter > TileMap;
+  typedef HASHMAP < std::string,List_Iter > TileMap;
 #endif
-#else
-  typedef std::map < const std::string,List_Iter > TileMap;
-#endif
+
 
   /// Main cache storage object
   TileList tileList;

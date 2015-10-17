@@ -1,6 +1,6 @@
 /*  Missing time implementations for Windows
 
-    Copyright (C) 2011 Ruven Pillay.
+    Copyright (C) 2011-2012 Ruven Pillay.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -13,13 +13,14 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+    along with this program; if not, write to the Free Software Foundation,
+    Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
 */
 
+#ifndef TIME_H
+#define TIME_H
 
-
-// Define mising time related functions on Windows
+// Define mising time related functions on Windows and add round function for MSVC compiler
 #ifdef WIN32
 
 #include <Windows.h>
@@ -33,5 +34,7 @@ struct timezone
 time_t timegm(struct tm*);
 char *strptime(const char*, const char*, struct tm*);
 int gettimeofday(struct timeval*, struct timezone*);
+double round(double);
 
+#endif
 #endif

@@ -9,12 +9,12 @@
     Culture of the Czech Republic.
 
 
-    Copyright (C) 2009-2012 IIPImage.
-    Authors: Ruven Pillay & Petr Pridal
+    Copyright (C) 2009-2015 IIPImage.
+    Author: Ruven Pillay
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
@@ -33,16 +33,18 @@
 
 
 #include "IIPImage.h"
-#include <cstdio>
 
 #include <jpx.h>
 #include <jp2.h>
 #include <kdu_stripe_decompressor.h>
-#include <iostream>
 #include <fstream>
 
 #define TILESIZE 256
 
+// Kakadu 7.5 uses namespaces
+#if KDU_MAJOR_VERSION > 7 || (KDU_MAJOR_VERSION == 7 && KDU_MINOR_VERSION >= 5)
+using namespace kdu_supp; // Also includes the `kdu_core' namespace
+#endif
 
 extern std::ofstream logfile;
 
@@ -101,14 +103,8 @@ class KakaduImage : public IIPImage {
   /// Kakadu decompressor object
   kdu_stripe_decompressor decompressor;
 
-  // Tile or Strip region
+  /// Tile or Strip region
   kdu_dims comp_dims;
-
-  // Quality layers
-  unsigned int max_layers;
-
-  /// Number of levels that don't physically exist
-  unsigned int virtual_levels;
 
   /// Main processing function
   /** @param r resolution
@@ -119,7 +115,7 @@ class KakaduImage : public IIPImage {
       @param h height of region
       @param d buffer to fill
    */
-  void process( unsigned int r, int l, int x, int y, unsigned int w, unsigned int h, void* d ) throw (std::string);
+  void process( unsigned int r, int l, int x, int y, unsigned int w, unsigned int h, void* d ) throw (file_error);
 
   /// Convenience function to delete allocated buffers
   /** @param b pointer to buffer
@@ -130,41 +126,55 @@ class KakaduImage : public IIPImage {
  public:
 
   /// Constructor
-  KakaduImage():IIPImage() {
+  KakaduImage(): IIPImage(){
     tile_width = TILESIZE; tile_height = TILESIZE;
-    numResolutions = 0; virtual_levels = 0;
   };
 
   /// Constructor
   /** @param path image path
    */
-  KakaduImage( const std::string& path ): IIPImage( path ) {
+  KakaduImage( const std::string& path ): IIPImage( path ){
     tile_width = TILESIZE; tile_height = TILESIZE;
-    numResolutions = 0; virtual_levels = 0;
   };
 
   /// Copy Constructor
+  /** @param image Kakadu object
+   */
+  KakaduImage( const KakaduImage& image ): IIPImage( image ) {};
+
+  /// Constructor from IIPImage object
   /** @param image IIPImage object
    */
-  KakaduImage( const IIPImage& image ): IIPImage( image ) {
+  KakaduImage( const IIPImage& image ): IIPImage( image ){
     tile_width = TILESIZE; tile_height = TILESIZE;
-    numResolutions = 0; virtual_levels = 0;
   };
+
+  /// Assignment Operator
+  /** @param TPTImage object
+   */
+  KakaduImage& operator = ( KakaduImage image ) {
+    if( this != &image ){
+      closeImage();
+      IIPImage::operator=(image);
+    }
+    return *this;
+  }
+
 
   /// Destructor
   ~KakaduImage() { closeImage(); };
 
   /// Overloaded function for opening a TIFF image
-  void openImage() throw (std::string);
+  void openImage() throw (file_error);
 
 
   /// Overloaded function for loading TIFF image information
   /** @param x horizontal sequence angle
       @param y vertical sequence angle
-  */
-  void loadImageInfo( int x, int y ) throw (std::string);
+   */
+  void loadImageInfo( int x, int y ) throw (file_error);
 
-  /// Overloaded function for closing a TIFF image
+  /// Overloaded function for closing a JPEG2000 image
   void closeImage();
 
   /// Return whether this image type directly handles region decoding
@@ -176,8 +186,8 @@ class KakaduImage : public IIPImage {
       @param r resolution
       @param l number of quality layers to decode
       @param t tile number
-  */
-  RawTile getTile( int x, int y, unsigned int r, int l, unsigned int t ) throw (std::string);
+   */
+  RawTile getTile( int x, int y, unsigned int r, int l, unsigned int t ) throw (file_error);
 
   /// Overloaded function for returning a region for a given angle and resolution
   /** Return a RawTile object: Overloaded by child class.
@@ -190,8 +200,8 @@ class KakaduImage : public IIPImage {
       @param w width of region
       @param h height of region
       @param b buffer to fill
-  */
-  RawTile getRegion( int ha, int va, unsigned int r, int l, int x, int y, unsigned int w, unsigned int h ) throw (std::string);
+   */
+  RawTile getRegion( int ha, int va, unsigned int r, int l, int x, int y, unsigned int w, unsigned int h ) throw (file_error);
 
 
 };

@@ -1,7 +1,7 @@
 /*
     IIP Response Handler Class
 
-    Copyright (C) 2003-2012 Ruven Pillay.
+    Copyright (C) 2003-2015 Ruven Pillay.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -14,14 +14,13 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+    along with this program; if not, write to the Free Software Foundation,
+    Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
 */
 
 #include "IIPResponse.h"
 #include <cstdio>
 #include <cstring>
-// #include <iconv.h>
 
 using namespace std;
 
@@ -33,9 +32,10 @@ IIPResponse::IIPResponse(){
   error = "";
   protocol = "";
   server = "Server: iipsrv/" + string(VERSION);
+  powered = "X-Powered-By: IIPImage";
   modified = "";
-  cache = "Cache-Control: max-age=86400";
   mimeType = "Content-Type: application/vnd.netfpx";
+  cors = "";
   eof = "\r\n";
   sent = false;
 }
@@ -64,29 +64,14 @@ void IIPResponse::addResponse( const char* c, int a ){
 }
 
 
-void IIPResponse::addResponse( string arg, const char* a ){
+void IIPResponse::addResponse( string arg, const string& s ){
 
-  /* We should convert these responses to UTF-8, but for now we won't bother
-     as all metadata should be in ASCII anyway and I can't get iconv to work
-     properly :-(
-  */
-  char tmp[64];
-  snprintf( tmp, 64, "/%d:%s", (int) strlen(a), a );
+  char tmp[8];
+  snprintf( tmp, 8, "/%d:", (int) s.size() );
   responseBody.append( arg );
   responseBody.append( tmp );
+  responseBody.append( s );
   responseBody.append( eof );
-
-//   char tmp1[64];
-//   char tmp2[64];
-//   size_t inbuf, outbuf;
-//   inbuf = outbuf = 0;
-//   iconv_t ict = iconv_open( "UTF-8", "ASCII" );
-//   iconv( ict, (char**) &a, &inbuf, (char**) &tmp1, &outbuf );
-//   iconv_close( ict );
-//   snprintf( tmp2, 64, "%s/%d:%ls", arg.c_str(), strlen( a ) * 2, (wchar_t*) tmp1 );
-//   responseBody.append( tmp2 );
-//   responseBody.append( eof );
-
 }
 
 
@@ -109,7 +94,7 @@ void IIPResponse::setError( const string& code, const string& arg ){
 
 string IIPResponse::formatResponse() {
 
-  /* We always need 2 sets of eof after the MIME headers to stop apache from complaining
+  /* We always need 2 sets of eof after the headers before body/response
    */
   string response;
   if( error.length() ){
@@ -119,7 +104,9 @@ string IIPResponse::formatResponse() {
       eof + eof + error;
   }
   else{
-    response = server + eof + cache + eof + modified + eof + mimeType + eof + eof + protocol + eof + responseBody;
+    response = server + eof + powered + eof + cacheControl + eof + modified + eof + mimeType + eof;
+    if( !cors.empty() ) response += cors + eof;
+    response += eof + protocol + eof + responseBody;
   }
 
   return response;
@@ -132,7 +119,7 @@ string IIPResponse::getAdvert( const string& version ){
   string advert = server + eof + "Content-Type: text/html" + eof;
   advert += "Status: 400 Bad Request" + eof;
   advert += "Content-Disposition: inline;filename=\"iipsrv.html\"" + eof + eof;
-  advert += "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\"><html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\" ><head><title>IIP Server</title><meta name=\"author\" content=\"Ruven Pillay &lt;ruven@users.sourceforge.net&gt;\"/></head><body style=\"font-family:Helvetica,sans-serif; margin:4em\"><center><h1>Internet Imaging Protocol Server</h1><h2>Version "
+  advert += "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"/><title>IIPImage Server</title><meta name=\"DC.creator\" content=\"Ruven Pillay &lt;ruven@users.sourceforge.net&gt;\"/><meta name=\"DC.title\" content=\"IIPImage Server\"/><meta name=\"DC.source\" content=\"http://iipimage.sourceforge.net\"/></head><body style=\"font-family:Helvetica,sans-serif; margin:4em\"><center><h1>IIPImage Server</h1><h2>Version "
     + version +
     "</h2><br/><h3>Project Home Page: <a href=\"http://iipimage.sourceforge.net\">http://iipimage.sourceforge.net</a></h3><br/><h4>by<br/>Ruven Pillay</h4></center></body></html>";
 

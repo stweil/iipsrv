@@ -1,11 +1,11 @@
 /*
     IIP Generic Task Class
 
-    Copyright (C) 2006-2007 Ruven Pillay.
+    Copyright (C) 2006-2014 Ruven Pillay.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
@@ -14,8 +14,8 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+    along with this program; if not, write to the Free Software Foundation,
+    Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
 */
 
 
@@ -35,45 +35,29 @@
 #include "Writer.h"
 #include "Cache.h"
 #include "Watermark.h"
+#ifdef HAVE_PNG
+#include "PNGCompressor.h"
+#endif
 
 
-// Define our http header cache max age
+// Define our http header cache max age (24 hours)
 #define MAX_AGE 86400
 
 
-// Use the hashmap extensions if we are using >= gcc 3.1
-#ifdef __GNUC__
 
-#if (__GNUC__ == 3 && __GNUC_MINOR__ >= 1) || (__GNUC__ >= 4)
-#define USE_HASHMAP 1
-#endif
-
-// And the high performance memory pool allocator if >= gcc 3.4
-#if (__GNUC__ == 3 && __GNUC_MINOR__ >= 4) || (__GNUC__ >= 4)
-#define USE_POOL_ALLOCATOR 1
-#endif
-
-#endif
-
-
-
-#ifdef USE_HASHMAP
-#include <ext/hash_map>
-
-#ifdef USE_POOL_ALLOCATOR
+#ifdef HAVE_EXT_POOL_ALLOCATOR
 #include <ext/pool_allocator.h>
-typedef __gnu_cxx::hash_map < const std::string, IIPImage,
+typedef HASHMAP < std::string, IIPImage,
 			      __gnu_cxx::hash< const std::string >,
 			      std::equal_to< const std::string >,
 			      __gnu_cxx::__pool_alloc< std::pair<const std::string,IIPImage> >
 			      > imageCacheMapType;
 #else
-typedef __gnu_cxx::hash_map <const std::string,IIPImage> imageCacheMapType;
+typedef HASHMAP <std::string,IIPImage> imageCacheMapType;
 #endif
 
-#else
-typedef std::map<const std::string,IIPImage> imageCacheMapType;
-#endif
+
+
 
 
 
@@ -81,6 +65,9 @@ typedef std::map<const std::string,IIPImage> imageCacheMapType;
 struct Session {
   IIPImage **image;
   JPEGCompressor* jpeg;
+#ifdef HAVE_PNG
+  PNGCompressor* png;
+#endif
   View* view;
   IIPResponse* response;
   Watermark* watermark;
@@ -130,7 +117,6 @@ class Task {
   /** @param type command type */
   static Task* factory( const std::string& type );
 
-
   /// Check image
   void checkImage();
 
@@ -155,6 +141,7 @@ class OBJ : public Task {
   void bits_per_channel();
   void horizontal_views();
   void vertical_views();
+  void min_max_values();
   void metadata( std::string field );
 
 };
@@ -174,8 +161,22 @@ class SDS : public Task {
 };
 
 
+/// MINMAX Command
+class MINMAX : public Task {
+ public:
+  void run( Session* session, const std::string& argument );
+};
+
+
 /// Contrast Command
 class CNT : public Task {
+ public:
+  void run( Session* session, const std::string& argument );
+};
+
+
+/// Gamma Command
+class GAM : public Task {
  public:
   void run( Session* session, const std::string& argument );
 };
@@ -202,6 +203,13 @@ class RGN : public Task {
 };
 
 
+/// ROT Rotation Command
+class ROT : public Task {
+ public:
+  void run( Session* session, const std::string& argument );
+};
+
+
 /// FIF Command
 class FIF : public Task {
  public:
@@ -209,10 +217,24 @@ class FIF : public Task {
 };
 
 
-/// JPEG Tile Command
+/// PNG Tile Command
+/*class PTL : public Task {
+ public:
+  void run( Session* session, const std::string& argument );
+};*/
+
+
+/// JPEG Tile Export Command
 class JTL : public Task {
  public:
   void run( Session* session, const std::string& argument );
+
+  /// Send out a single tile
+  /** @param session our current session
+      @param resolution requested image resolution
+      @param tile requested tile index
+   */
+  void send( Session* session, int resolution, int tile );
 };
 
 
@@ -230,10 +252,14 @@ class TIL : public Task {
 };
 
 
-/// CVT Command
+/// CVT Region Export Command
 class CVT : public Task {
  public:
   void run( Session* session, const std::string& argument );
+
+  /// Send out our requested region
+  /** @param session our current session */
+  void send( Session* session );
 };
 
 
@@ -250,6 +276,17 @@ class SHD : public Task {
   void run( Session* session, const std::string& argument );
 };
 
+/// Colormap Command
+class CMP : public Task {
+ public:
+  void run( Session* session, const std::string& argument );
+};
+
+/// Inversion Command
+class INV : public Task {
+ public:
+  void run( Session* session, const std::string& argument );
+};
 
 /// Zoomify Request Command
 class Zoomify : public Task {
@@ -260,6 +297,13 @@ class Zoomify : public Task {
 
 /// SPECTRA Request Command
 class SPECTRA : public Task {
+ public:
+  void run( Session* session, const std::string& argument );
+};
+
+
+/// SPECTRA Request Command
+class PFL : public Task {
  public:
   void run( Session* session, const std::string& argument );
 };
@@ -277,6 +321,21 @@ class DeepZoom : public Task {
  public:
   void run( Session* session, const std::string& argument );
 };
+
+
+/// IIIF Command
+class IIIF : public Task {
+ public:
+  void run( Session* session, const std::string& argument );
+};
+
+
+/// Color Twist Command
+class CTW : public Task {
+ public:
+  void run( Session* session, const std::string& argument );
+};
+
 
 
 #endif

@@ -1,11 +1,11 @@
 /*
     IIP OJB Command Handler Class Member Functions
 
-    Copyright (C) 2006-2009 Ruven Pillay.
+    Copyright (C) 2006-2014 Ruven Pillay.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
@@ -14,8 +14,8 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+    along with this program; if not, write to the Free Software Foundation,
+    Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
 */
 
 
@@ -53,9 +53,9 @@ void OBJ::run( Session* s, const std::string& a )
   }
   else if( argument == "iip-server" ) iip_server();
   // IIP optional commands
-  else if( argument == "iip-opt-comm" ) session->response->addResponse( "IIP-opt-comm:CVT CNT QLT JTL JTLS WID HEI RGN SHD" );
+  else if( argument == "iip-opt-comm" ) session->response->addResponse( "IIP-opt-comm:CVT CNT QLT JTL JTLS WID HEI RGN MINMAX SHD CMP INV CTW" );
   // IIP optional objects
-  else if( argument == "iip-opt-obj" ) session->response->addResponse( "IIP-opt-obj:Horizontal-views Vertical-views Tile-size Bits-per-channel" );
+  else if( argument == "iip-opt-obj" ) session->response->addResponse( "IIP-opt-obj:Horizontal-views Vertical-views Tile-size Bits-per-channel Min-Max-sample-values" );
   // Resolution-number
   else if( argument == "resolution-number" ) resolution_number();
   // Max-size
@@ -68,6 +68,8 @@ void OBJ::run( Session* s, const std::string& a )
   else if( argument == "vertical-views" ) vertical_views();
   // Horizontal-views
   else if( argument == "horizontal-views" ) horizontal_views();
+  // Minimum and maximum provided by TIFF tags
+  else if( argument == "min-max-sample-values" ) min_max_values();
 
   // Colorspace
   /* The request can have a suffix, which we don't need, so do a
@@ -136,6 +138,14 @@ void OBJ::max_size(){
   checkImage();
   int x = (*session->image)->getImageWidth();
   int y = (*session->image)->getImageHeight();
+
+  // For 90 and 270 rotation swap width and height
+  if( (int)((session->view)->getRotation()) % 180 == 90 ){
+    unsigned int tmp = x;
+    x = y;
+    y = tmp;
+  }
+
   if( session->loglevel >= 2 ){
     *(session->logfile) << "OBJ :: Max-size is " << x << " " << y << endl;
   }
@@ -170,11 +180,11 @@ void OBJ::tile_size(){
 void OBJ::bits_per_channel(){
 
   checkImage();
-  int bpp = (*session->image)->getNumBitsPerPixel();
+  int bpc = (*session->image)->getNumBitsPerPixel();
   if( session->loglevel >= 2 ){
-    *(session->logfile) << "OBJ :: Bits-per-channel handler returning " << bpp << endl;
+    *(session->logfile) << "OBJ :: Bits-per-channel handler returning " << bpc << endl;
   }
-  session->response->addResponse( "Bits-per-channel", bpp );
+  session->response->addResponse( "Bits-per-channel", bpc );
 
 }
 
@@ -210,6 +220,29 @@ void OBJ::horizontal_views(){
   session->response->addResponse( tmp );
 }
 
+void OBJ::min_max_values(){
+
+  checkImage();
+  unsigned int n = (*session->image)->getNumChannels();
+  string tmp = "Min-Max-sample-values:";
+  char val[24];
+  float minimum, maximum;
+  for( unsigned int i=0; i<n ; i++ ){
+    minimum = (*session->image)->getMinValue(i);
+    maximum = (*session->image)->getMaxValue(i);
+    snprintf( val, 24, " %.9g ", minimum );
+    tmp += val;
+    snprintf( val, 24, " %.9g ", maximum );
+    tmp += val;
+  }
+  // Chop off the final space
+  tmp.resize( tmp.length() - 1 );
+  session->response->addResponse( tmp );
+  if( session->loglevel >= 2 ){
+    *(session->logfile) << "OBJ :: Min-Max-sample-values handler returning " << tmp << endl;
+  }
+
+}
 
 void OBJ::colorspace( std::string arg ){
 
@@ -252,11 +285,11 @@ void OBJ::metadata( string field ){
 
   string metadata = (*session->image)->getMetadata( field );
   if( session->loglevel >= 3 ){
-    *(session->logfile) << "OBJ :: " << field << " handler returning" << metadata << endl;
+    *(session->logfile) << "OBJ :: " << field << " handler returning '" << metadata << "'" << endl;
   }
 
   if( metadata.length() ){
-    session->response->addResponse( field, metadata.c_str() );
+    session->response->addResponse( field, metadata );
   }
 
 

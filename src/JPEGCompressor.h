@@ -109,6 +109,7 @@ class JPEGCompressor{
       CompressStrip and finally clean up using Finish
       @param rawtile tile containing the image to be compressed
       @param strip_height pixel height of the strip we want to compress
+      @return header size
    */
   void InitCompression( const RawTile& rawtile, unsigned int strip_height ) throw (std::string);
 
@@ -120,13 +121,20 @@ class JPEGCompressor{
   unsigned int CompressStrip( unsigned char* s, unsigned char* o, unsigned int tile_height ) throw (std::string);
 
   /// Finish the strip based compression and free memory
-  /** @param output output buffer */
+  /** @param output output buffer
+      @return size of output generated
+   */
   unsigned int Finish( unsigned char* output ) throw (std::string);
 
 
   /// Compress an entire buffer of image data at once in one command
   /** @param t tile of image data */
   int Compress( RawTile& t ) throw (std::string);
+
+
+  /// Add metadata to the JPEG header
+  /** @param m metadata */
+  void addMetadata( const std::string& m );
 
 
   /// Return the JPEG header size

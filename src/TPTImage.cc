@@ -2,11 +2,11 @@
 
 /*  IIP Server: Tiled Pyramidal TIFF handler
 
-    Copyright (C) 2000-2012 Ruven Pillay.
+    Copyright (C) 2000-2014 Ruven Pillay.
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
+    the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
     This program is distributed in the hope that it will be useful,
@@ -28,64 +28,50 @@
 using namespace std;
 
 
-void TPTImage::openImage() throw (string)
+void TPTImage::openImage() throw (file_error)
 {
-//   tiff = NULL;
-//   tile_buf = NULL;
 
   // Insist that the tiff and tile_buf be non-NULL
   if( tiff || tile_buf ){
-    throw string( "TPT::openImage: tiff or tile_buf is not NULL" );
+    throw file_error( "TPT::openImage: tiff or tile_buf is not NULL" );
   }
 
   string filename = getFileName( currentX, currentY );
 
-  // Check if our image has been modified
-  updateTimestamp(filename);
-
+  // Update our timestamp
+  updateTimestamp( filename );
 
   // Try to open and allocate a buffer
-  if( ( tiff = TIFFOpen( filename.c_str(), "r" ) ) == NULL ){
-    throw string( "tiff open failed for: " + filename );
+  if( ( tiff = TIFFOpen( filename.c_str(), "rm" ) ) == NULL ){
+    throw file_error( "tiff open failed for: " + filename );
   }
-  loadImageInfo( currentX, currentY );
+
+  // Load our metadata if not already loaded
+  if( bpc == 0 ) loadImageInfo( currentX, currentY );
 
   // Insist on a tiled image
-  if( (tile_width == 0) && (tile_height == 0) )
-    throw string( "TIFF image is not tiled" );
-
-  // Also get some metadata
-  char tmp[256];
-  if( TIFFGetField( tiff, TIFFTAG_ARTIST, &tmp ) ) metadata["author"] = tmp;
-  if( TIFFGetField( tiff, TIFFTAG_COPYRIGHT, &tmp ) ) metadata["copyright"] = tmp;
-  if( TIFFGetField( tiff, TIFFTAG_DATETIME, &tmp ) ) metadata["create-dtm"] = tmp;
-  if( TIFFGetField( tiff, TIFFTAG_IMAGEDESCRIPTION, &tmp ) ) metadata["subject"] = tmp;
-  if( TIFFGetField( tiff, TIFFTAG_SOFTWARE, &tmp ) ) metadata["app-name"] = tmp;
+  if( (tile_width == 0) && (tile_height == 0) ){
+    throw file_error( "TIFF image is not tiled" );
+  }
 
   isSet = true;
 
 }
 
 
-void TPTImage::loadImageInfo( int seq, int ang ) throw(string)
+void TPTImage::loadImageInfo( int seq, int ang ) throw(file_error)
 {
   tdir_t current_dir;
   int count;
-  uint16 colour, samplesperpixel, bitspersample;
+  uint16 colour, samplesperpixel, bitspersample, sampleformat;
+  double sminvaluearr[4] = {0.0}, smaxvaluearr[4] = {0.0};
+  double *sminvalue = NULL, *smaxvalue = NULL;
   unsigned int w, h;
   string filename;
+  char *tmp = NULL;
 
-  // If we are currently working on a different sequence number, then
-  //  close and reload the image.
-  if( (currentX != seq) || (currentY != ang) ){
-    closeImage();
-    filename = getFileName( seq, ang );
-    if( ( tiff = TIFFOpen( filename.c_str(), "r" ) ) == NULL ){
-      throw string( "tiff open failed for:" + filename );
-    }
-    currentX = seq;
-    currentY = ang;
-  }
+  currentX = seq;
+  currentY = ang;
 
   // Get the tile and image sizes
   TIFFGetField( tiff, TIFFTAG_TILEWIDTH, &tile_width );
@@ -95,10 +81,12 @@ void TPTImage::loadImageInfo( int seq, int ang ) throw(string)
   TIFFGetField( tiff, TIFFTAG_SAMPLESPERPIXEL, &samplesperpixel );
   TIFFGetField( tiff, TIFFTAG_BITSPERSAMPLE, &bitspersample );
   TIFFGetField( tiff, TIFFTAG_PHOTOMETRIC, &colour );
+  TIFFGetField( tiff, TIFFTAG_SAMPLEFORMAT, &sampleformat );
 
   // We have to do this conversion explicitly to avoid problems on Mac OS X
   channels = (unsigned int) samplesperpixel;
-  bpp = (unsigned int) bitspersample;
+  bpc = (unsigned int) bitspersample;
+  sampleType = (sampleformat==3) ? FLOATINGPOINT : FIXEDPOINT;
 
   // Check for the no. of resolutions in the pyramidal image
   current_dir = TIFFCurrentDirectory( tiff );
@@ -123,17 +111,63 @@ void TPTImage::loadImageInfo( int seq, int ang ) throw(string)
   if( colour == PHOTOMETRIC_CIELAB ) colourspace = CIELAB;
   else if( colour == PHOTOMETRIC_MINISBLACK ) colourspace = GREYSCALE;
   else if( colour == PHOTOMETRIC_PALETTE ){
-    // Watch out for colourmapped images. There are stored as 1 sample per pixel,
+    // Watch out for colourmapped images. These are stored as 1 sample per pixel,
     // but are decoded to 3 channels by libtiff, so declare them as sRGB
     colourspace = sRGB;
     channels = 3;
   }
   else if( colour == PHOTOMETRIC_YCBCR ){
-    // JPEG encoded tiles can be subsampled YCbCr encoded. Ask to decode of these to RGB
+    // JPEG encoded tiles can be subsampled YCbCr encoded. Ask to decode these to RGB
     TIFFSetField( tiff, TIFFTAG_JPEGCOLORMODE, JPEGCOLORMODE_RGB );
     colourspace = sRGB;
   }
   else colourspace = sRGB;
+
+  // Get the max and min values for our data type - required for floats
+  // This are usually single values per image, but can also be per channel
+  // in libtiff > 4.0.2 via http://www.asmail.be/msg0055458208.html
+
+#ifdef TIFFTAG_PERSAMPLE
+  if( channels > 1 ){
+    TIFFSetField(tiff, TIFFTAG_PERSAMPLE, PERSAMPLE_MULTI);
+    TIFFGetFieldDefaulted( tiff, TIFFTAG_SMINSAMPLEVALUE, &sminvalue );
+    TIFFGetFieldDefaulted( tiff, TIFFTAG_SMAXSAMPLEVALUE, &smaxvalue );
+    TIFFSetField(tiff, TIFFTAG_PERSAMPLE, PERSAMPLE_MERGED);
+    if (!sminvalue) sminvalue = sminvaluearr;
+    if (!smaxvalue) smaxvalue = smaxvaluearr;
+  }
+  else{
+#endif
+    sminvalue = sminvaluearr;
+    smaxvalue = smaxvaluearr;
+    TIFFGetFieldDefaulted( tiff, TIFFTAG_SMINSAMPLEVALUE, sminvalue );
+    TIFFGetFieldDefaulted( tiff, TIFFTAG_SMAXSAMPLEVALUE, smaxvalue );
+#ifdef TIFFTAG_PERSAMPLE
+  }
+#endif
+
+  // Clear our arrays
+  min.clear();
+  max.clear();
+
+  for( unsigned int i=0; i<channels; i++ ){
+    if( (!sminvalue) == smaxvalue[i] ){
+      // Set default values if values not included in header
+      if( bpc == 8 ) smaxvalue[i] = 255.0;
+      else if( bpc == 16 ) smaxvalue[i] = 65535.0;
+      else if( bpc == 32 && sampleType == FIXEDPOINT ) smaxvalue[i] = 4294967295.0;
+    }
+    min.push_back( (float)sminvalue[i] );
+    max.push_back( (float)smaxvalue[i] );
+  }
+
+  // Also get some basic metadata
+  if( TIFFGetField( tiff, TIFFTAG_ARTIST, &tmp ) ) metadata["author"] = tmp;
+  if( TIFFGetField( tiff, TIFFTAG_COPYRIGHT, &tmp ) ) metadata["copyright"] = tmp;
+  if( TIFFGetField( tiff, TIFFTAG_DATETIME, &tmp ) ) metadata["create-dtm"] = tmp;
+  if( TIFFGetField( tiff, TIFFTAG_IMAGEDESCRIPTION, &tmp ) ) metadata["subject"] = tmp;
+  if( TIFFGetField( tiff, TIFFTAG_SOFTWARE, &tmp ) ) metadata["app-name"] = tmp;
+  if( TIFFGetField( tiff, TIFFTAG_XMLPACKET, &count, &tmp ) ) metadata["xmp"] = string(tmp,count);
 
 }
 
@@ -151,7 +185,7 @@ void TPTImage::closeImage()
 }
 
 
-RawTile TPTImage::getTile( int seq, int ang, unsigned int res, int layers, unsigned int tile ) throw (string)
+RawTile TPTImage::getTile( int seq, int ang, unsigned int res, int layers, unsigned int tile ) throw (file_error)
 {
   uint32 im_width, im_height, tw, th, ntlx, ntly;
   uint32 rem_x, rem_y;
@@ -162,8 +196,8 @@ RawTile TPTImage::getTile( int seq, int ang, unsigned int res, int layers, unsig
   // Check the resolution exists
   if( res > numResolutions ){
     ostringstream error;
-    error << "TPTImage :: Asked for non-existant resolution: " << res;
-    throw error.str();
+    error << "TPTImage :: Asked for non-existent resolution: " << res;
+    throw file_error( error.str() );
   }
 
 
@@ -177,15 +211,15 @@ RawTile TPTImage::getTile( int seq, int ang, unsigned int res, int layers, unsig
   // Open the TIFF if it's not already open
   if( !tiff ){
     filename = getFileName( seq, ang );
-    if( ( tiff = TIFFOpen( filename.c_str(), "r" ) ) == NULL ){
-      throw string( "tiff open failed for:" + filename );
+    if( ( tiff = TIFFOpen( filename.c_str(), "rm" ) ) == NULL ){
+      throw file_error( "tiff open failed for:" + filename );
     }
   }
 
 
   // Reload our image information in case the tile size etc is different
   if( (currentX != seq) || (currentY != ang) ){
-    loadImageInfo( currentX, currentY );
+    loadImageInfo( seq, ang );
   }
 
 
@@ -197,15 +231,15 @@ RawTile TPTImage::getTile( int seq, int ang, unsigned int res, int layers, unsig
 
   // Change to the right directory for the resolution
   if( !TIFFSetDirectory( tiff, vipsres ) ) {
-    throw string( "TIFFSetDirectory failed" );
+    throw file_error( "TIFFSetDirectory failed" );
   }
 
 
   // Check that a valid tile number was given  
   if( tile >= TIFFNumberOfTiles( tiff ) ) {
     ostringstream tile_no;
-    tile_no << "Asked for non-existant tile: " << tile;
-    throw tile_no.str();
+    tile_no << "Asked for non-existent tile: " << tile;
+    throw file_error( tile_no.str() );
   } 
 
 
@@ -219,7 +253,7 @@ RawTile TPTImage::getTile( int seq, int ang, unsigned int res, int layers, unsig
   TIFFGetField( tiff, TIFFTAG_IMAGELENGTH, &im_height );
   TIFFGetField( tiff, TIFFTAG_PHOTOMETRIC, &colour );
 //   TIFFGetField( tiff, TIFFTAG_SAMPLESPERPIXEL, &channels );
-//   TIFFGetField( tiff, TIFFTAG_BITSPERSAMPLE, &bpp );
+//   TIFFGetField( tiff, TIFFTAG_BITSPERSAMPLE, &bpc );
 
 
   // Get the width and height for last row and column tiles
@@ -264,7 +298,7 @@ RawTile TPTImage::getTile( int seq, int ang, unsigned int res, int layers, unsig
   // Allocate memory for our tile.
   if( !tile_buf ){
     if( ( tile_buf = _TIFFmalloc( TIFFTileSize(tiff) ) ) == NULL ){
-      throw string( "tiff malloc tile failed" );
+      throw file_error( "tiff malloc tile failed" );
     }
   }
 
@@ -272,17 +306,18 @@ RawTile TPTImage::getTile( int seq, int ang, unsigned int res, int layers, unsig
   int length = TIFFReadEncodedTile( tiff, (ttile_t) tile,
 				    tile_buf, (tsize_t) - 1 );
   if( length == -1 ) {
-    throw string( "TIFFReadEncodedTile failed for " + getFileName( seq, ang ) );
+    throw file_error( "TIFFReadEncodedTile failed for " + getFileName( seq, ang ) );
   }
 
 
-  RawTile rawtile( tile, res, seq, ang, tw, th, channels, bpp );
+  RawTile rawtile( tile, res, seq, ang, tw, th, channels, bpc );
   rawtile.data = tile_buf;
   rawtile.dataLength = length;
   rawtile.filename = getImagePath();
   rawtile.timestamp = timestamp;
   rawtile.memoryManaged = 0;
   rawtile.padded = true;
+  rawtile.sampleType = sampleType;
 
   return( rawtile );
 
