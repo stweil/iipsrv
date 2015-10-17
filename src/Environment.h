@@ -38,6 +38,7 @@
 #define LIBMEMCACHED_SERVERS "localhost"
 #define LIBMEMCACHED_TIMEOUT 86400  // 24 hours
 #define INTERPOLATION 1
+#define USE_OPENJPEG 0
 
 
 
@@ -126,6 +127,15 @@ class Environment {
     else layers = MAX_LAYERS;
 
     return layers;
+  }
+
+  static bool getUseOpenJPEG(){
+	char* envpara = getenv( "USE_OPENJPEG" );
+    int value;
+    if( envpara ) value = atoi( envpara );
+    else value = 0;
+    
+    return (value > 0);
   }
 
 

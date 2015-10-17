@@ -28,6 +28,10 @@
 #include "KakaduImage.h"
 #endif
 
+#ifdef HAVE_OPENJPEG
+#include "OpenJPEGImage.h"
+#endif
+
 
 // If necessary, define missing setenv and unsetenv functions
 #ifndef HAVE_SETENV
@@ -46,7 +50,6 @@ static void unsetenv(char *env_name) {
   } for (; *cc != NULL; cc++) *cc=cc[1];
 }
 #endif
-
 
 
 using namespace std;
@@ -188,6 +191,12 @@ void FIF::run( Session* session, const string& src ){
       if( session->loglevel >= 2 ) *(session->logfile) << "FIF :: TIFF image requested" << endl;
       *session->image = new TPTImage( test );
     }
+#ifdef HAVE_OPENJPEG
+    else if( imtype=="jp2" && session->useOpenJPEG ){
+	  if( session->loglevel >= 2 ) *(session->logfile) << "FIF :: JPEG2000 image requested (Using OpenJPEG)" << endl;
+      *session->image = new OpenJPEGImage( test );
+    }
+#endif
 #ifdef HAVE_KAKADU
     else if( imtype=="jpx" || imtype=="jp2" || imtype=="j2k" ){
       if( session->loglevel >= 2 ) *(session->logfile) << "FIF :: JPEG2000 image requested" << endl;
