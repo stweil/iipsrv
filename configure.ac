@@ -207,22 +207,31 @@ AC_SUBST(DL_LIBS)
 
 #************************************************************
 
-# 	Check for OpenJPEG JPEG2000 library
+# Check for OpenJPEG JPEG2000 library
 
 AC_ARG_WITH( openjpeg,
    [  --with-openjpeg=DIR          location of the openjpeg source files],
    openjpeg_path=$withval)
 
 
-AC_CHECK_FILE($openjpeg_path/src/lib/openjp2/openjpeg.h, AC_MSG_RESULT([configure: Found OpenJPEG sources. Will compile JPEG2000 support]);openjpeg=true,AC_MSG_RESULT([configure: No OpenJPEG JPEG2000 Sources Found]))
-AM_CONDITIONAL(ENABLE_OPENJPEG, test x$openjpeg = xtrue)
+AC_CHECK_FILE($openjpeg_path/src/lib/openjp2/openjpeg.h,
+	AC_MSG_RESULT([configure: Found OpenJPEG sources. Will compile JPEG2000 support]); OPENJPEG=true,
+	AC_MSG_RESULT([configure: No OpenJPEG JPEG2000 Sources Found]); OPENJPEG=false
+)
 
-if test "$openjpeg" = "true"; then
-	AC_DEFINE(HAVE_OPENJPEG)
+if test "x$OPENJPEG" = xtrue; then
 	INCLUDES="$INCLUDES -I$openjpeg_path/src/lib/openjp2/"
-	EXTRAS="OpenJPEGImage.o"
 	LIBS="$LIBS $openjpeg_path/bin/libopenjp2.so -lpthread"
+else
+	PKG_CHECK_MODULES([OPENJPEG], [libopenjpeg1], [OPENJPEG=true], [OPENJPEG=false])
 fi
+
+if test "x$OPENJPEG" = xtrue; then
+	AC_DEFINE(HAVE_OPENJPEG)
+	EXTRAS="OpenJPEGImage.o"
+fi
+
+AM_CONDITIONAL([ENABLE_OPENJPEG], [test x$OPENJPEG = xtrue])
 
 INCLUDES="$INCLUDES -I."
 AC_SUBST(INCLUDES)
@@ -374,6 +383,7 @@ Options Enabled:
 ---------------
  Memcached: 			${MEMCACHED}
  JPEG2000 (Kakadu):		${KAKADU}
+ JPEG2000 (OpenJPEG):		${OPENJPEG}
 ])
 
 # PNG Output:			${PNG}

@@ -38,7 +38,6 @@
 #define LIBMEMCACHED_SERVERS "localhost"
 #define LIBMEMCACHED_TIMEOUT 86400  // 24 hours
 #define INTERPOLATION 1
-#define USE_OPENJPEG 0
 
 #define CORS "";
 #define BASE_URL "";
@@ -133,7 +132,7 @@ class Environment {
   }
 
   static bool getUseOpenJPEG(){
-	char* envpara = getenv( "USE_OPENJPEG" );
+    char* envpara = getenv( "USE_OPENJPEG" );
     int value;
     if( envpara ) value = atoi( envpara );
     else value = 0;
