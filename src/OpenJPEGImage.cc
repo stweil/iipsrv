@@ -49,10 +49,8 @@ void OpenJPEGImage::openImage() throw (string){
 		logfile << "INFO :: OpenJPEG :: openImage() :: started" << endl << flush;
 	#endif
 
-	string filename = getFileName( currentX, currentY ); // Get file name
+	filename = getFileName( currentX, currentY ); // Get file name
 	updateTimestamp(filename); // Check if our image has been modified
-
-	if(!(fsrc = fopen(filename.c_str(), "rb"))) throw string("ERROR :: OpenJPEG :: openImage() :: failed to open file for reading");
 
 	loadImageInfo(currentX, currentY);
 	isSet = true; // Image is opened and info is set
@@ -73,11 +71,6 @@ void OpenJPEGImage::closeImage(){
 	#ifdef DEBUG
 		logfile << "INFO :: OpenJPEG :: closeImage() :: started" << endl << flush;
 	#endif
-
-	if(fsrc){
-		fclose(fsrc);
-		fsrc = NULL;
-	}
 
 	#ifdef DEBUG
 		logfile << "INFO :: OpenJPEG :: closeImage() :: ended" << endl << flush;
@@ -126,7 +119,7 @@ void OpenJPEGImage::loadImageInfo( int seq, int ang ) throw(string){
 	if(!opj_setup_decoder(l_codec, &parameters))
 		throw string("ERROR :: OpenJPEG :: openImage() :: opj_setup_decoder() failed"); // Setup decoder
 
-	if(!(l_stream = opj_stream_create_default_file_stream(fsrc,1)))
+	if(!(l_stream = opj_stream_create_default_file_stream(filename.c_str(), 1)))
 		throw string("ERROR :: OpenJPEG :: openImage() :: opj_stream_create_default_file_stream() failed"); // Create stream
 
 	if(!opj_read_header(l_stream, l_codec, &l_image)) throw string("ERROR :: OpenJPEG :: openImage() :: opj_read_header() failed"); // Read main header
@@ -164,7 +157,7 @@ void OpenJPEGImage::loadImageInfo( int seq, int ang ) throw(string){
 		default: throw string("ERROR :: OpenJPEG :: Unsupported color space");
 	}
 
-	bpp = l_image->comps[0].bpp; // Save bit depth
+	bpc = l_image->comps[0].bpp; // Save bit depth
 	sgnd = l_image->comps[0].sgnd; // Save whether the data are signed
 
 	// Save first resolution level
@@ -366,7 +359,7 @@ void OpenJPEGImage::process(unsigned int tw, unsigned int th, unsigned int xoffs
 	opj_set_warning_handler(l_codec, warning_callback, 00);
 	opj_set_error_handler(l_codec, error_callback, 00);
 
-	if(!(l_stream = opj_stream_create_default_file_stream(fsrc, 1)))
+	if(!(l_stream = opj_stream_create_default_file_stream(filename.c_str(), 1)))
 		throw string("ERROR :: OpenJPEG :: process() :: opj_stream_create_default_file_stream() failed"); // Create stream
 
 	opj_dparameters_t params;
@@ -399,7 +392,7 @@ void OpenJPEGImage::process(unsigned int tw, unsigned int th, unsigned int xoffs
 		logfile <<		"INFO :: OpenJPEG :: process() :: Decoding took " << timer.getTime() << " microseconds" << endl <<
 					"INFO :: OpenJPEG :: process() :: Decoded image info: " << endl <<
 					"\tPrecision: " << out_image->comps[0].prec << endl <<
-					"\tBPP: " << out_image->comps[0].bpp << endl <<
+					"\tBPP: " << out_image->comps[0].bpc << endl <<
 					"\tSigned: " << out_image->comps[0].sgnd << endl <<
 					"\tXOFF: " << out_image->comps[0].x0 << endl <<
 					"\tYOFF: " << out_image->comps[0].y0 << endl <<

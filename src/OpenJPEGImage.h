@@ -18,7 +18,7 @@ class OpenJPEGImage : public IIPImage {
 
 private:
 
-	FILE* fsrc; // Compressed source file
+	std::string filename; // Compressed source file
 
 	unsigned int raster_width; // Image size
 	unsigned int raster_height;
