@@ -124,7 +124,7 @@ void FIF::run( Session* session, const string& src ){
       *session->image = new TPTImage( test );
     }
 #ifdef HAVE_OPENJPEG
-    else if( imtype=="jp2" && session->useOpenJPEG ){
+    else if( format == JPEG2000 && session->useOpenJPEG ){
 	  if( session->loglevel >= 2 ) *(session->logfile) << "FIF :: JPEG2000 image requested (Using OpenJPEG)" << endl;
       *session->image = new OpenJPEGImage( test );
     }
