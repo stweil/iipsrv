@@ -249,10 +249,14 @@ int main( int argc, char *argv[] )
   string filesystem_prefix = Environment::getFileSystemPrefix();
 
 
+#if !defined(HAVE_OPENJPEG)
   bool useOpenJPEG = false;
-  #ifdef HAVE_OPENJPEG
-	useOpenJPEG = Environment::getUseOpenJPEG();
-  #endif
+#elif defined(HAVE_KAKADU)
+  bool useOpenJPEG = Environment::getUseOpenJPEG();
+#else
+  bool useOpenJPEG = true;
+#endif
+
 
   // Set up our watermark object
   Watermark watermark( Environment::getWatermark(),
