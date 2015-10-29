@@ -123,16 +123,20 @@ void FIF::run( Session* session, const string& src ){
       if( session->loglevel >= 2 ) *(session->logfile) << "FIF :: TIFF image detected" << endl;
       *session->image = new TPTImage( test );
     }
-#ifdef HAVE_OPENJPEG
-    else if( format == JPEG2000 && session->useOpenJPEG ){
-	  if( session->loglevel >= 2 ) *(session->logfile) << "FIF :: JPEG2000 image requested (Using OpenJPEG)" << endl;
-      *session->image = new OpenJPEGImage( test );
-    }
-#endif
-#ifdef HAVE_KAKADU
+#if defined(HAVE_KAKADU) || defined(HAVE_OPENJPEG)
     else if( format == JPEG2000 ){
-      if( session->loglevel >= 2 ) *(session->logfile) << "FIF :: JPEG2000 image detected" << endl;
-      *session->image = new KakaduImage( test );
+      if( session->loglevel >= 2 )
+        *(session->logfile) << "FIF :: JPEG2000 image detected" << endl;
+#if defined(HAVE_OPENJPEG)
+      if( session->useOpenJPEG )
+        *session->image = new OpenJPEGImage( test );
+#endif
+#if defined(HAVE_KAKADU)
+#if defined(HAVE_OPENJPEG)
+      else
+#endif
+        *session->image = new KakaduImage( test );
+#endif
     }
 #endif
     else throw string( "Unsupported image type: " + argument );
@@ -154,7 +158,7 @@ void FIF::run( Session* session, const string& src ){
 	  throw string( "Unsupported image type: " + imtype );
 	}
 	else{
-	  // Construct our dynamic loading image decoder 
+	  // Construct our dynamic loading image decoder
 	  session->image = new DSOImage( test );
 	  (*session->image)->Load( (*mod_it).second );
 
