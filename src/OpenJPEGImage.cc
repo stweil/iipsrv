@@ -157,7 +157,7 @@ void OpenJPEGImage::loadImageInfo( int seq, int ang ) throw(string){
 		default: throw string("ERROR :: OpenJPEG :: Unsupported color space");
 	}
 
-	bpc = l_image->comps[0].bpp; // Save bit depth
+	bpc = l_image->comps[0].prec; // Save bit depth
 	sgnd = l_image->comps[0].sgnd; // Save whether the data are signed
 
 	// Save first resolution level
