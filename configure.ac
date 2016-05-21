@@ -209,6 +209,11 @@ AC_SUBST(DL_LIBS)
 
 # Check for OpenJPEG JPEG2000 library
 
+AC_ARG_ENABLE(openjpeg,
+    [  --enable-openjpeg       enable OpenJPEG] )
+
+if test "$enable_openjpeg" = "yes"; then
+
 AC_ARG_WITH( openjpeg,
    [  --with-openjpeg=DIR          location of the openjpeg source files],
    openjpeg_path=$withval)
@@ -241,6 +246,8 @@ AC_SUBST(INCLUDES)
 AC_SUBST(EXTRAS)
 
 AC_SUBST(LIBS)
+
+fi
 
 
 #************************************************************
