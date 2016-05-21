@@ -105,6 +105,14 @@ void CVT::send( Session* session ){
 
   // If we have requested that the aspect ratio be maintained, make sure the final image fits *within* the requested size
   if( session->view->maintain_aspect ){
+    *(session->logfile) << "CVT :: "
+                        << (((float)resampled_height/(float)view_height) > ((float)resampled_width/(float)view_width))
+                        << ((uint64_t)resampled_height * view_width > (uint64_t)resampled_width * view_height)
+                        << (((float)resampled_width/(float)view_width) > ((float)resampled_height/(float)view_height))
+                        << ((uint64_t)resampled_width * view_height > (uint64_t)resampled_height * view_width)
+                        << ", resampled " << resampled_width << "x" << resampled_height
+                        << endl;
+
     if( ((float)resampled_height/(float)view_height) > ((float)resampled_width/(float)view_width) ){
       resampled_height = (unsigned int) round((((float)resampled_width/(float)view_width) * view_height));
     }
@@ -346,7 +354,9 @@ void CVT::send( Session* session ){
     }
   }
 
-
+  if( session->loglevel >= 5 ){
+    *(session->logfile) << "CVT :: channels = " << complete_image.channels << endl;
+  }
 
   // Initialise our JPEG compression object
   session->jpeg->InitCompression( complete_image, resampled_height );
