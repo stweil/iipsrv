@@ -133,6 +133,9 @@ public:
   */
   void closeImage();
 
+  /// Return whether this image type directly handles region decoding
+  bool regionDecoding(){ return true; };
+
   /**
     Overloaded function for getting a particular tile
     \param x        horizontal sequence angle
