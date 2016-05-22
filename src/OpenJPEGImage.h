@@ -38,7 +38,7 @@ private:
   unsigned int image_tile_width; // Tile size defined in the image
   unsigned int image_tile_height;
 
-  int sgnd; // Whether the data are signed
+  bool sgnd; // Whether the data are signed
 
   unsigned int max_layers; // Quality layers
 
@@ -72,7 +72,7 @@ public:
     tile_height = TILESIZE;
     raster_width = 0;
     raster_height = 0;
-    sgnd = 0;
+    sgnd = false;
     numResolutions = 0;
     virtual_levels = 0;
   };
@@ -90,7 +90,7 @@ public:
     tile_height = TILESIZE;
     raster_width = 0;
     raster_height = 0;
-    sgnd = 0;
+    sgnd = false;
     numResolutions = 0;
     virtual_levels = 0;
   };
@@ -102,8 +102,13 @@ public:
   OpenJPEGImage(const IIPImage& image)
       : IIPImage(image)
   {
+    image_tile_width = 0;
+    image_tile_height = 0;
     tile_width = TILESIZE;
     tile_height = TILESIZE;
+    raster_width = 0;
+    raster_height = 0;
+    sgnd = false;
     numResolutions = image.numResolutions;
     virtual_levels = 0;
   };
@@ -133,17 +138,13 @@ public:
   */
   void closeImage();
 
-  /// Return whether this image type directly handles region decoding
-  bool regionDecoding(){ return true; };
-
-  /**
-    Overloaded function for getting a particular tile
-    \param x        horizontal sequence angle
-    \param y        vertical sequence angle
-    \param r        resolution
-    \param l        number of quality layers to decode
-    \param t        tile number
-  */
+  /// Overloaded function for getting a particular tile
+  /** @param x horizontal sequence angle
+      @param y vertical sequence angle
+      @param r resolution
+      @param l number of quality layers to decode
+      @param t tile number
+   */
   RawTile getTile(int x, int y, unsigned int r, int l,
                   unsigned int t) throw(file_error);
 
