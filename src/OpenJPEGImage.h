@@ -21,7 +21,7 @@
 
 #include "IIPImage.h"
 
-#define TILESIZE 256
+#define TILESIZE 1024
 
 extern std::ofstream logfile;
 
@@ -30,19 +30,17 @@ extern std::ofstream logfile;
 class OpenJPEGImage : public IIPImage {
 
 private:
-  std::string filename; // Compressed source file
-
   unsigned int raster_width; // Image size
   unsigned int raster_height;
 
   unsigned int image_tile_width; // Tile size defined in the image
   unsigned int image_tile_height;
 
-  bool sgnd; // Whether the data are signed
-
   unsigned int max_layers; // Quality layers
 
   unsigned int virtual_levels; // How many virtual levels we need to generate
+
+  bool sgnd; // Whether the data are signed
 
   /**
      Main processing function
@@ -138,6 +136,12 @@ public:
   */
   void closeImage();
 
+  /// Return whether this image type directly handles region decoding.
+  bool regionDecoding()
+  {
+    return true;
+  };
+
   /// Overloaded function for getting a particular tile
   /** @param x horizontal sequence angle
       @param y vertical sequence angle
@@ -158,12 +162,10 @@ public:
     \param y        y coordinate
     \param w        width of region
     \param h        height of region
-    \param b        buffer to fill
     \return         a RawTile object
   */
-  void getRegion(int ha, int va, unsigned int r, int l,
-                 int x, int y, unsigned int w, unsigned int h,
-                 unsigned char* b) throw(file_error);
+  RawTile getRegion(int ha, int va, unsigned int r, int layers,
+                    int x, int y, unsigned int w, unsigned int h) throw(file_error);
 };
 
 #endif

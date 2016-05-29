@@ -16,7 +16,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-//#define DEBUG 1
+#define DEBUG 1
 
 #include "OpenJPEGImage.h"
 
@@ -71,8 +71,9 @@ void OpenJPEGImage::openImage() throw(file_error)
           << flush;
 #endif
 
-  filename = getFileName(currentX, currentY); // Get file name
-  updateTimestamp(filename); // Check if our image has been modified
+  std::string filename = getFileName(currentX, currentY);
+  // Check if our image has been modified.
+  updateTimestamp(filename);
 
   loadImageInfo(currentX, currentY);
   isSet = true; // Image is opened and info is set
@@ -148,6 +149,7 @@ void OpenJPEGImage::loadImageInfo(int /*seq*/, int /*ang*/) throw(file_error)
     throw file_error("ERROR :: OpenJPEG :: openImage() :: opj_setup_decoder() failed"); // Setup decoder
   }
 
+  std::string filename = getFileName(currentX, currentY);
   if (!(l_stream = opj_stream_create_default_file_stream(filename.c_str(), 1))) {
     throw file_error("ERROR :: OpenJPEG :: openImage() :: opj_stream_create_default_file_stream() failed"); // Create stream
   }
@@ -204,7 +206,8 @@ void OpenJPEGImage::loadImageInfo(int /*seq*/, int /*ang*/) throw(file_error)
   }
 
   bpc = l_image->comps[0].prec; // Save bit depth
-  sgnd = l_image->comps[0].sgnd; // Save whether the data are signed
+  // Save whether the data are signed.
+  sgnd = (l_image->comps[0].sgnd != 0);
 
   // Save first resolution level
   image_widths.push_back((raster_width = l_image->x1 - l_image->x0));
@@ -344,10 +347,9 @@ RawTile OpenJPEGImage::getTile(int seq, int ang, unsigned int res, int layers,
 /************************************************************************/
 // Gets selected region from opened picture
 
-void OpenJPEGImage::getRegion(int /*seq*/, int /*ang*/, unsigned int res,
-    int layers, int x, int y,
-    unsigned int w, unsigned int h,
-    unsigned char* buf) throw(file_error)
+RawTile OpenJPEGImage::getRegion(int ha, int va, unsigned int r, int layers,
+                                 int x, int y,
+                                 unsigned int w, unsigned int h) throw(file_error)
 {
 #ifdef DEBUG
   Timer timer;
@@ -438,6 +440,7 @@ void OpenJPEGImage::process(unsigned int tw, unsigned int th,
   opj_set_warning_handler(l_codec, warning_callback, 00);
   opj_set_error_handler(l_codec, error_callback, 00);
 
+  std::string filename = getFileName(currentX, currentY);
   if (!(l_stream = opj_stream_create_default_file_stream(filename.c_str(), 1))) {
     // Create stream
     throw file_error("ERROR :: OpenJPEG :: process() :: opj_stream_create_default_file_stream() failed");
@@ -489,7 +492,7 @@ void OpenJPEGImage::process(unsigned int tw, unsigned int th,
   logfile << "INFO :: OpenJPEG :: process() :: Decoding took " << timer.getTime() << " microseconds" << endl
           << "INFO :: OpenJPEG :: process() :: Decoded image info: " << endl
           << "\tPrecision: " << out_image->comps[0].prec << endl
-          << "\tBPP: " << out_image->comps[0].bpc << endl
+          << "\tBPP: " << out_image->comps[0].bpp << endl
           << "\tSigned: " << out_image->comps[0].sgnd << endl
           << "\tXOFF: " << out_image->comps[0].x0 << endl
           << "\tYOFF: " << out_image->comps[0].y0 << endl
