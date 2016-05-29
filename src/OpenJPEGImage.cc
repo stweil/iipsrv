@@ -331,7 +331,7 @@ RawTile OpenJPEGImage::getTile(int seq, int ang, unsigned int res, int layers,
   // If tile sizes defined in IIPImage and opened image do not match, indexes of tiles we ask OPJ library for do not match either
   // In case of this tile size inconsistency, seventh parameter becomes -1. This means that OpenJPEG library will process the request as
   // a request for region, not a tile. OPJ library will then select tiles that need to be decoded in order to decode requested region.
-  process(tw, th, xoffset, yoffset, res, layers,
+  process(res, layers,xoffset, yoffset, tw, th,
           (image_tile_width == tw && image_tile_height == th) ? tile : -1, rawtile.data);
 
 #ifdef DEBUG
@@ -347,7 +347,7 @@ RawTile OpenJPEGImage::getTile(int seq, int ang, unsigned int res, int layers,
 /************************************************************************/
 // Gets selected region from opened picture
 
-RawTile OpenJPEGImage::getRegion(int ha, int va, unsigned int r, int layers,
+RawTile OpenJPEGImage::getRegion(int ha, int va, unsigned int res, int layers,
                                  int x, int y,
                                  unsigned int w, unsigned int h) throw(file_error)
 {
@@ -363,6 +363,14 @@ RawTile OpenJPEGImage::getRegion(int ha, int va, unsigned int r, int layers,
     throw file_error("ERROR :: OpenJPEG :: getRegion() :: Asked for non-existent resolution");
   }
 
+  // Scale up our output bit depth to the nearest factor of 8
+  unsigned int obpc = bpc;
+  if (bpc <= 16 && bpc > 8) {
+    obpc = 16;
+  } else if (bpc <= 8) {
+    obpc = 8;
+  }
+
   // Check layer request
   if (layers <= 0) {
     layers = ceil(max_layers / 2.0);
@@ -376,13 +384,30 @@ RawTile OpenJPEGImage::getRegion(int ha, int va, unsigned int r, int layers,
     throw file_error("ERROR :: OpenJPEG :: getRegion() :: Asked for region out of raster size");
   }
 
+  RawTile rawtile(0, res, ha, va, w, h, channels, obpc);
+
+  if (obpc == 16) {
+    rawtile.data = new unsigned short[w * h * channels];
+  } else if (obpc == 8) {
+    rawtile.data = new unsigned char[w * h * channels];
+  } else {
+    throw file_error("ERROR :: OpenJPEG :: Unsupported number of bits");
+  }
+
+  rawtile.dataLength = w * h * channels * obpc / 8;
+  rawtile.filename = getImagePath();
+  rawtile.timestamp = timestamp;
+
   // Get the region
-  process(w, h, x, y, res, layers, -1, buf);
+  process(res, layers, x, y, w, h, -1, rawtile.data);
 
 #ifdef DEBUG
-  logfile << "INFO :: OpenJPEG :: getRegion() :: " << timer.getTime() << " microseconds" << endl
+  logfile << "INFO :: OpenJPEG :: getRegion() :: "
+          << timer.getTime() << " microseconds" << endl
           << flush;
 #endif
+
+  return rawtile;
 }
 
 /************************************************************************/
@@ -390,9 +415,9 @@ RawTile OpenJPEGImage::getRegion(int ha, int va, unsigned int r, int layers,
 /************************************************************************/
 // Core method for recovering tiles and regions from opened picture via OPJ library
 
-void OpenJPEGImage::process(unsigned int tw, unsigned int th,
+void OpenJPEGImage::process(unsigned int res, int layers,
                             unsigned int xoffset, unsigned int yoffset,
-                            unsigned int res, int layers, int tile,
+                            unsigned int tw, unsigned int th, int tile,
                             void* d) throw(file_error)
 {
   static opj_image_t* out_image; // Decoded image

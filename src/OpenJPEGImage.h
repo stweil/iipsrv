@@ -44,18 +44,19 @@ private:
 
   /**
      Main processing function
-    \param tw               width of region
-    \param th               height of region
-    \param xoffset          x coordinate
-    \param yoffset          y coordinate
     \param res              resolution
     \param layers           number of quality levels to decode
+    \param xoffset          x coordinate
+    \param yoffset          y coordinate
+    \param tw               width of region
+    \param th               height of region
     \param tile             specific tile to decode (-1 if deconding a region)
     \param d                buffer to fill
 */
-  void process(unsigned int tw, unsigned int th,
-               unsigned int xoffset, unsigned int yoffset, unsigned int res,
-               int layers, int tile, void* d) throw(file_error);
+  void process(unsigned int res, int layers,
+               unsigned int tw, unsigned int th,
+               unsigned int xoffset, unsigned int yoffset,
+               int tile, void* d) throw(file_error);
 
 public:
   /**
@@ -156,15 +157,15 @@ public:
     Overloaded function for returning a region from image
     \param ha       horizontal angle
     \param va       vertical angle
-    \param r        resolution
-    \param l        number of quality layers to decode
+    \param res      resolution
+    \param layers   number of quality layers to decode
     \param x        x coordinate
     \param y        y coordinate
     \param w        width of region
     \param h        height of region
     \return         a RawTile object
   */
-  RawTile getRegion(int ha, int va, unsigned int r, int layers,
+  RawTile getRegion(int ha, int va, unsigned int res, int layers,
                     int x, int y, unsigned int w, unsigned int h) throw(file_error);
 };
 
