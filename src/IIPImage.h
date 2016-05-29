@@ -63,7 +63,7 @@ class IIPImage {
  private:
 
   /// Image path supplied
-  std::string imagePath; 
+  std::string imagePath;
 
   /// Prefix to add to paths
   std::string fileSystemPrefix;
@@ -322,7 +322,7 @@ class IIPImage {
   /** Used only for dynamically loading codec modules. Overloaded by DSOImage class.
       @param module the codec module path
    */
-  virtual void Load( const std::string& module ) {;};
+  virtual void Load( const std::string& /*module*/ ) {;};
 
   /// Return codec description: Overloaded by child class.
   virtual const std::string getDescription() { return std::string( "IIPImage Base Class" ); };
@@ -334,7 +334,7 @@ class IIPImage {
   /** @param x horizontal sequence angle
       @param y vertical sequence angle
    */
-  virtual void loadImageInfo( int x, int y ) { ; };
+  virtual void loadImageInfo( int /*x*/, int /*y*/ ) { ; };
 
   /// Close the image: Overloaded by child class.
   virtual void closeImage() {;};
