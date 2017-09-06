@@ -16,9 +16,6 @@
  * (Special thanks to Karen and Bill.  They made my job much easier and
  *  significantly more enjoyable.)
  */
-#ifndef lint
-static const char rcsid[] = "$Id: os_win32.c,v 1.33 2002/03/05 18:15:15 robs Exp $";
-#endif /* not lint */
 
 #define WIN32_LEAN_AND_MEAN 
 #include <windows.h>

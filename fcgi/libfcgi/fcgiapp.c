@@ -10,9 +10,6 @@
  * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
  */
-#ifndef lint
-static const char rcsid[] = "$Id: fcgiapp.c,v 1.34 2001/12/12 22:54:10 robs Exp $";
-#endif /* not lint */
 
 #include <assert.h>
 #include <errno.h>

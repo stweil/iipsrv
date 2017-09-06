@@ -16,10 +16,6 @@
  *  snapper@openmarket.com
  */
 
-#ifndef lint
-static const char rcsid[] = "$Id: os_unix.c,v 1.37 2002/03/05 19:14:49 robs Exp $";
-#endif /* not lint */
-
 #include "fcgi_config.h"
 
 #include <sys/types.h>
